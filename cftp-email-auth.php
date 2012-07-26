@@ -49,7 +49,7 @@ $cftp_letters	  = $cftp_consonants.$cftp_vowels; //both
 class cftp_email_auth {
 
 	function __construct() {
-		zed1_debug();
+		//zed1_debug();
 		//add_action( 'init', array( 'cftp_email_auth', 'init' ) );
 	} // end constructor
 
