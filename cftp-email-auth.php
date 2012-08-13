@@ -81,12 +81,12 @@ class cftp_email_auth {
 		add_action( 'login_init', array( 'cftp_email_auth', 'login_init' ) );
 		zed1_debug("added login_init action");
 		//add_action(	'login_form', array( 'cftp_email_auth', 'login_form' ) );
-		add_action(	'login_form_login', array( 'cftp_email_auth', 'login_form_login' ) );
+		add_action(	'login_form_token', array( 'cftp_email_auth', 'login_form_token' ) );
 
 		remove_filter( 'authenticate', 'wp_authenticate_username_password', 20, 3 );
 		add_filter( 'authenticate', array( 'cftp_email_auth', 'authenticate' ), 20, 3 );
 
-	
+
 		/* admin only hooks below here */
 		if ( !is_admin() )
 			return;
@@ -276,8 +276,10 @@ class cftp_email_auth {
 			$action = 'resetpass';
 
 		// validate action so as to default to the login screen
-		if ( !in_array( $action, array( 'postpass', 'logout', 'lostpassword', 'retrievepassword', 'resetpass', 'rp', 'register', 'login', 'token' ), true ) && false === has_filter( 'login_form_' . $action ) )
+		if ( !in_array( $action, array( 'postpass', 'logout', 'lostpassword', 'retrievepassword', 'resetpass', 'rp', 'register', 'login' ), true ) && false === has_filter( 'login_form_' . $action ) )
 			$action = 'login';
+
+		do_action( 'login_form_' . $action );
 
 		nocache_headers();
 
@@ -299,7 +301,7 @@ class cftp_email_auth {
 
 		// allow plugins to override the default actions, and to add extra actions if they want
 		// do_action( 'login_init' ); // we are already doing this action
-		do_action( 'login_form_' . $action );
+		//do_action( 'login_form_' . $action ); moved to earlier
 
 		$http_post = ('POST' == $_SERVER['REQUEST_METHOD']);
 		switch ($action) {
@@ -371,6 +373,55 @@ class cftp_email_auth {
 <?php
 			    login_footer('user_login');
 				break;
+
+
+			case 'token':
+
+				$token_login = isset($_REQUEST['token_login']) ? $_REQUEST['token_login'] : '';
+				zed1_debug("token_login=$token_login");
+/*
+				$token_login = trim( $token_login );
+				zed1_debug("token_login=$token_login");
+
+				$token_login = str_replace( ' ', '', $token_login );
+				zed1_debug("token_login=$token_login");
+
+				$token_login = strtolower( $token_login );
+				zed1_debug("token_login=$token_login");
+*/
+
+				//$errors = new WP_Error();
+				if ( !empty( $token_login ) ) {
+					$errors->add('token_login', __('<strong>The token was not recognized or has timed out</strong>: Did you type it correctly?'));
+				}
+
+				login_header(__('Login Token'), '<p class="message">' . __('Please enter the token you recieved at your registered email address.') . '</p>', $errors);
+
+				//$user_login = isset($_POST['user_login']) ? stripslashes($_POST['user_login']) : '';
+
+?>
+
+<form name="tokenloginform" id="tokenloginform" action="<?php echo esc_url( site_url( 'wp-login.php?action=token', 'login_post' ) ); ?>" method="post">
+  <p>
+	<label for="token_login" ><?php _e('Token:') ?><br />
+	  <input type="text" name="token_login" id="token_login" class="input" value="<?php echo esc_attr($token_login); ?>" size="20" tabindex="10" /></label>
+  </p>
+<?php do_action('tokenlogin_form'); ?>
+  <input type="hidden" name="redirect_to" value="<?php echo esc_attr( $redirect_to ); ?>" />
+  <p class="submit"><input type="submit" name="wp-submit" id="wp-submit" class="button-primary" value="<?php esc_attr_e('Login'); ?>" tabindex="100" /></p>
+</form>
+
+<p id="nav">
+<a href="<?php echo esc_url( wp_login_url() ); ?>"><?php _e('Log in') ?></a>
+<?php if ( get_option( 'users_can_register' ) ) : ?>
+  | <a href="<?php echo esc_url( site_url( 'wp-login.php?action=register', 'login' ) ); ?>"><?php _e( 'Register' ); ?></a>
+<?php endif; ?>
+</p>
+
+<?php
+			    login_footer('user_login');
+				break;
+
 
 			case 'resetpass' :
 			case 'rp' :
@@ -599,14 +650,14 @@ class cftp_email_auth {
 	<label for="user_login"><?php _e('Email address') ?><br />
 	  <input type="text" name="log" id="user_login" class="input" value="<?php echo esc_attr($user_login); ?>" size="20" tabindex="10" /></label>
   </p>
-<?php if (0) { ?>
+<?php if (0) { /* don't need password field */ ?>
   <p>
 	<label for="user_pass"><?php _e('Password') ?><br />
 	  <input type="password" name="pwd" id="user_pass" class="input" value="" size="20" tabindex="20" /></label>
   </p>
 <?php } ?>
 <?php do_action('login_form'); ?>
-<?php if (0) { ?>
+<?php if (0) { /* don't need remember me field */  ?>
   <p class="forgetmenot"><label for="rememberme"><input name="rememberme" type="checkbox" id="rememberme" value="forever" tabindex="90"<?php checked( $rememberme ); ?> /> <?php esc_attr_e('Remember Me'); ?></label></p>
 <?php } ?>
   <p class="submit">
@@ -669,11 +720,6 @@ break;
 		exit();
 	} // end login_init
 
-	static function login_form_login() {
-		zed1_debug();
-	} // end login_form_login
-
-
 	static function login_form() {
 		zed1_debug();
 		$user_email = '';
@@ -713,7 +759,7 @@ break;
 
 		set_site_transient( CFTP_EMAIL_AUTH_TOKEN_META_KEY . $token[4], $data, self::get_option( 'token_lifetime' ) * 60 );
 		// update_user_meta( $user->ID, CFTP_EMAIL_AUTH_TOKEN_META_KEY . $token[4], $data);
-		
+
 		$message = "\n
 To login to [SITENAME], please visit the following address: [LOGINLINK] \n
 If the link does not work please visit [LOGINPAGE] and type in the following code: \n
@@ -722,15 +768,15 @@ If the link does not work please visit [LOGINPAGE] and type in the following cod
 Thanks,
 the [SITENAME] team
 ";
-		
+
 		$message = str_replace('[SITENAME]', get_bloginfo( 'sitename' ) ,  $message);
 		$message = str_replace('[LOGINLINK]', site_url( '/login/' . urlencode( $token[4]  ) ),  $message);
-		
+
 		$message = str_replace('[LOGINPAGE]', site_url( '/login/' ),  $message);
 		unset( $token[4] );
 		$message = str_replace('[TOKEN]', implode( ' ', $token ),  $message);
 		zed1_debug($message);
-		
+
 		$subject = "[SITENAME] - login";
 		$subject = str_replace('[SITENAME]', get_bloginfo( 'sitename' ) ,  $subject);
 		zed1_debug($subject);
@@ -770,63 +816,83 @@ the [SITENAME] team
 	} // end get_token_part
 
 
+	static function login_form_token() {
+		zed1_debug();
+		$token_login = isset($_REQUEST['token_login']) ? $_REQUEST['token_login'] : '';
+		zed1_debug("token_login=$token_login");
 
+		$token_login = trim( $token_login );
+		zed1_debug("token_login=$token_login");
+
+		$token_login = str_replace( ' ', '', $token_login );
+		zed1_debug("token_login=$token_login");
+
+		$token_login = strtolower( $token_login );
+		zed1_debug("token_login=$token_login");
+
+		self::authorise_with_token( $token_login );
+
+	} // end login_form_token
+
+
+	static function authorise_with_token( $token_login ) {
+		if ( strlen( $token_login ) == 16 ) {
+
+			$data = get_site_transient( CFTP_EMAIL_AUTH_TOKEN_META_KEY . $token_login );
+			zed1_debug("data=", $data);
+
+			$user_id = $data['user_id'];
+			zed1_debug("user_id=$user_id");
+
+			// check token matches (duh! we wouldn't have found it)
+			if ( $token_login === $data['token'][4] ) {
+				// check for timeout
+				zed1_debug("token_lifetime=", self::get_option( 'token_lifetime' ));
+				zed1_debug("time=",time());
+				zed1_debug("data[time]=",$data['time']);
+				if ( $data['time'] + ( self::get_option( 'token_lifetime' ) * 60 ) > time() ) {
+					// check ip matches
+					zed1_debug("ip=",$_SERVER['REMOTE_ADDR']);
+					if ( $data['ip'] ===  $_SERVER['REMOTE_ADDR'] ) {
+						// good to go. log the user in
+						zed1_debug("good to go");
+
+						$user = get_user_by( 'id', $user_id );
+						zed1_debug($user);
+						$user_login = $user->user_login;
+						wp_set_current_user($user_id, $user_login);
+						wp_set_auth_cookie($user_id);
+						do_action('wp_login', $user_login);
+						wp_redirect( site_url() );
+						// we can delete this transient now
+						delete_site_transient( CFTP_EMAIL_AUTH_TOKEN_META_KEY . $token[4] );
+
+						exit;
+					} else {
+					// error ip doesn't match
+						zed1_debug("ip doesn't match");
+					}
+				} else {
+				// timed out
+					zed1_debug("timed out");
+				}
+			} else {
+			//invalid token
+				zed1_debug("invalid token");
+			}
+		} // end if length ok
+	} // end authorise_with_token
 
 	static function catch_login() {
 		zed1_debug($_SERVER['REQUEST_URI']);
-		if ( false !== strpos( $_SERVER['REQUEST_URI'], '/login/') ) {
+		if ( false !== strpos( $_SERVER['REQUEST_URI'], '/login') ) {
 			$url = $_SERVER['REQUEST_URI'];
 			$p = strpos( $_SERVER['REQUEST_URI'], '/login/') + strlen( '/login/' );
-			$sent_token = strtolower( substr( $url, $p ) );
-			//zed1_debug("sent_token=$sent_token");
-			if ( strlen( $sent_token ) == 16 ) {
-				//try to find it in the db
-				global $wpdb;
+			$token_login = strtolower( substr( $url, $p ) );
+			zed1_debug("token_login=$token_login");
 
-				$data = get_site_transient( CFTP_EMAIL_AUTH_TOKEN_META_KEY . $sent_token );
-				zed1_debug("data=", $data);
-				//$data = $wpdb->get_row( $wpdb->prepare( "SELECT user_id, meta_value from $wpdb->usermeta WHERE meta_key = %s", CFTP_EMAIL_AUTH_TOKEN_META_KEY . $sent_token ) );
-				$user_id = $data['user_id'];
-				zed1_debug("user_id=$user_id");
-				//$data = maybe_unserialize($data->meta_value);
-				zed1_debug("data=", $data);
-				// check token matches (duh! we wouldn't have found it)
-				if ( $sent_token === $data['token'][4] ) {
-					// check for timeout
-						zed1_debug("token_lifetime=", self::get_option( 'token_lifetime' ));
-						zed1_debug("time=",time());
-						zed1_debug("data[time]=",$data['time']);
-					if ( $data['time'] + ( self::get_option( 'token_lifetime' ) * 60 ) > time() ) {
-						// check ip matches
-						zed1_debug("ip=",$_SERVER['REMOTE_ADDR']);
-						if ( $data['ip'] ===  $_SERVER['REMOTE_ADDR'] ) {
-							// good to go. log the user in
-							zed1_debug("good to go");
+			self::authorise_with_token( $token_login );
 
-							$user = get_user_by( 'id', $user_id );
-							zed1_debug($user);
-							$user_login = $user->user_login;
-							wp_set_current_user($user_id, $user_login);
-							wp_set_auth_cookie($user_id);
-							do_action('wp_login', $user_login);
-							wp_redirect( site_url() );
-							// we can delete this transient now
-							delete_site_transient( CFTP_EMAIL_AUTH_TOKEN_META_KEY . $token[4] );
-
-							exit;
-						} else {
-							// error ip doesn't match
-							zed1_debug("ip doesn't match");
-						}
-					} else {
-						// timed out
-						zed1_debug("timed out");
-					}
-				} else {
-				//invalid token
-						zed1_debug("invalid token");
-				}
-			} // end if length ok
 			// if we get here, it;s either an invalid token, or not found coz it timed out.
 			//redirect to wp-login.php with param token
 			wp_redirect( site_url( 'wp-login.php?action=token' ) );
