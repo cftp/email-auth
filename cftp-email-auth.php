@@ -49,12 +49,14 @@ $cftp_letters	  = $cftp_consonants.$cftp_vowels; //both
 class cftp_email_auth {
 
 	function __construct() {
-		//zed1_debug();
-		//add_action( 'init', array( 'cftp_email_auth', 'init' ) );
+		zed1_debug();
+		//add_action(	'init', array( 'cftp_email_auth', 'catch_login' ) );
+		add_action( 'init', array( 'cftp_email_auth', 'init' ) );
 	} // end constructor
 
 	static function init() {
 		zed1_debug();
+		self::catch_login();
 
 		$needs_flush = false;
 		$cftp_email_auth_version = get_option( CFTP_EMAIL_AUTH_VERSION_OPTION );
@@ -75,8 +77,10 @@ class cftp_email_auth {
 
 		load_plugin_textdomain( 'cftp_email_auth', false, basename( dirname(__FILE__) ) . '/languages' );
 
-		//add_action(	'init', array( 'cftp_email_auth', 'init_login' ) );
-		add_action(	'login_form', array( 'cftp_email_auth', 'login_form' ) );
+		zed1_debug("adding login_init action");
+		add_action( 'login_init', array( 'cftp_email_auth', 'login_init' ) );
+		zed1_debug("added login_init action");
+		//add_action(	'login_form', array( 'cftp_email_auth', 'login_form' ) );
 		add_action(	'login_form_login', array( 'cftp_email_auth', 'login_form_login' ) );
 
 		remove_filter( 'authenticate', 'wp_authenticate_username_password', 20, 3 );
@@ -89,7 +93,6 @@ class cftp_email_auth {
 
 		add_action( 'admin_init', array( 'cftp_email_auth', 'admin_init' ) );
 		add_action( 'admin_menu', array( 'cftp_email_auth', 'admin_menu' ) );
-		add_action( 'login_init', array( 'cftp_email_auth', 'login_init' ) );
 
 	} // end init
 
@@ -265,7 +268,7 @@ class cftp_email_auth {
 
 	/* let's take over wp-login.php */
 	static function login_init() {
-
+		zed1_debug();
 		$action = isset($_REQUEST['action']) ? $_REQUEST['action'] : 'login';
 		$errors = new WP_Error();
 
@@ -273,13 +276,48 @@ class cftp_email_auth {
 			$action = 'resetpass';
 
 		// validate action so as to default to the login screen
-		if ( !in_array($action, array('logout', 'lostpassword', 'retrievepassword', 'resetpass', 'rp', 'register', 'login'), true) && false === has_filter('login_form_' . $action) )
+		if ( !in_array( $action, array( 'postpass', 'logout', 'lostpassword', 'retrievepassword', 'resetpass', 'rp', 'register', 'login', 'token' ), true ) && false === has_filter( 'login_form_' . $action ) )
 			$action = 'login';
 
+		nocache_headers();
+
+		header('Content-Type: '.get_bloginfo('html_type').'; charset='.get_bloginfo('charset'));
+
+		if ( defined('RELOCATE') ) { // Move flag is set
+			if ( isset( $_SERVER['PATH_INFO'] ) && ($_SERVER['PATH_INFO'] != $_SERVER['PHP_SELF']) )
+				$_SERVER['PHP_SELF'] = str_replace( $_SERVER['PATH_INFO'], '', $_SERVER['PHP_SELF'] );
+
+			$schema = is_ssl() ? 'https://' : 'http://';
+			if ( dirname($schema . $_SERVER['HTTP_HOST'] . $_SERVER['PHP_SELF']) != get_option('siteurl') )
+				update_option('siteurl', dirname($schema . $_SERVER['HTTP_HOST'] . $_SERVER['PHP_SELF']) );
+		}
+
+		//Set a cookie now to see if they are supported by the browser.
+		setcookie(TEST_COOKIE, 'WP Cookie check', 0, COOKIEPATH, COOKIE_DOMAIN);
+		if ( SITECOOKIEPATH != COOKIEPATH )
+			setcookie(TEST_COOKIE, 'WP Cookie check', 0, SITECOOKIEPATH, COOKIE_DOMAIN);
+
+		// allow plugins to override the default actions, and to add extra actions if they want
+		// do_action( 'login_init' ); // we are already doing this action
 		do_action( 'login_form_' . $action );
 
 		$http_post = ('POST' == $_SERVER['REQUEST_METHOD']);
 		switch ($action) {
+
+			case 'postpass' :
+				if ( empty( $wp_hasher ) ) {
+					require_once( ABSPATH . 'wp-includes/class-phpass.php' );
+					// By default, use the portable hash from phpass
+					$wp_hasher = new PasswordHash(8, true);
+				}
+
+				// 10 days
+				setcookie( 'wp-postpass_' . COOKIEHASH, $wp_hasher->HashPassword( stripslashes( $_POST['post_password'] ) ), time() + 864000, COOKIEPATH );
+
+				wp_safe_redirect( wp_get_referer() );
+				exit();
+
+				break;
 
 			case 'logout' :
 				check_admin_referer('log-out');
@@ -318,16 +356,16 @@ class cftp_email_auth {
 	<label for="user_login" ><?php _e('Username or E-mail:') ?><br />
 	  <input type="text" name="user_login" id="user_login" class="input" value="<?php echo esc_attr($user_login); ?>" size="20" tabindex="10" /></label>
   </p>
-  <?php do_action('lostpassword_form'); ?>
+<?php do_action('lostpassword_form'); ?>
   <input type="hidden" name="redirect_to" value="<?php echo esc_attr( $redirect_to ); ?>" />
   <p class="submit"><input type="submit" name="wp-submit" id="wp-submit" class="button-primary" value="<?php esc_attr_e('Get New Password'); ?>" tabindex="100" /></p>
 </form>
 
 <p id="nav">
-  <a href="<?php echo esc_url( wp_login_url() ); ?>"><?php _e('Log in') ?></a>
-  <?php if ( get_option( 'users_can_register' ) ) : ?>
+<a href="<?php echo esc_url( wp_login_url() ); ?>"><?php _e('Log in') ?></a>
+<?php if ( get_option( 'users_can_register' ) ) : ?>
   | <a href="<?php echo esc_url( site_url( 'wp-login.php?action=register', 'login' ) ); ?>"><?php _e( 'Register' ); ?></a>
-  <?php endif; ?>
+<?php endif; ?>
 </p>
 
 <?php
@@ -360,7 +398,6 @@ class cftp_email_auth {
 				login_header(__('Reset Password'), '<p class="message reset-pass">' . __('Enter your new password below.') . '</p>', $errors );
 
 ?>
-
 <form name="resetpassform" id="resetpassform" action="<?php echo esc_url( site_url( 'wp-login.php?action=resetpass&key=' . urlencode( $_GET['key'] ) . '&login=' . urlencode( $_GET['login'] ), 'login_post' ) ); ?>" method="post">
   <input type="hidden" id="user_login" value="<?php echo esc_attr( $_GET['login'] ); ?>" autocomplete="off" />
 
@@ -381,10 +418,10 @@ class cftp_email_auth {
 </form>
 
 <p id="nav">
-  <a href="<?php echo esc_url( wp_login_url() ); ?>"><?php _e( 'Log in' ); ?></a>
-  <?php if ( get_option( 'users_can_register' ) ) : ?>
+<a href="<?php echo esc_url( wp_login_url() ); ?>"><?php _e( 'Log in' ); ?></a>
+<?php if ( get_option( 'users_can_register' ) ) : ?>
   | <a href="<?php echo esc_url( site_url( 'wp-login.php?action=register', 'login' ) ); ?>"><?php _e( 'Register' ); ?></a>
-  <?php endif; ?>
+<?php endif; ?>
 </p>
 
 <?php
@@ -418,7 +455,6 @@ class cftp_email_auth {
 
 				$redirect_to = apply_filters( 'registration_redirect', !empty( $_REQUEST['redirect_to'] ) ? $_REQUEST['redirect_to'] : '' );
 				login_header(__('Registration Form'), '<p class="message register">' . __('Register For This Site') . '</p>', $errors);
-
 ?>
 
 <form name="registerform" id="registerform" action="<?php echo esc_url( site_url('wp-login.php?action=register', 'login_post') ); ?>" method="post">
@@ -430,7 +466,7 @@ class cftp_email_auth {
 	<label for="user_email"><?php _e('E-mail') ?><br />
 	  <input type="email" name="user_email" id="user_email" class="input" value="<?php echo esc_attr(stripslashes($user_email)); ?>" size="25" tabindex="20" /></label>
   </p>
-  <?php do_action('register_form'); ?>
+<?php do_action('register_form'); ?>
   <p id="reg_passmail"><?php _e('A password will be e-mailed to you.') ?></p>
   <br class="clear" />
   <input type="hidden" name="redirect_to" value="<?php echo esc_attr( $redirect_to ); ?>" />
@@ -438,8 +474,8 @@ class cftp_email_auth {
 </form>
 
 <p id="nav">
-  <a href="<?php echo esc_url( wp_login_url() ); ?>"><?php _e( 'Log in' ); ?></a> |
-  <a href="<?php echo esc_url( wp_lostpassword_url() ); ?>" title="<?php esc_attr_e( 'Password Lost and Found' ) ?>"><?php _e( 'Lost your password?' ); ?></a>
+<a href="<?php echo esc_url( wp_login_url() ); ?>"><?php _e( 'Log in' ); ?></a> |
+<a href="<?php echo esc_url( wp_lostpassword_url() ); ?>" title="<?php esc_attr_e( 'Password Lost and Found' ) ?>"><?php _e( 'Lost your password?' ); ?></a>
 </p>
 
 <?php
@@ -453,6 +489,10 @@ class cftp_email_auth {
 			default:
 				$secure_cookie = '';
 				$interim_login = isset($_REQUEST['interim-login']);
+
+				$customize_login = isset( $_REQUEST['customize-login'] );
+				if ( $customize_login )
+					wp_enqueue_script( 'customize-base' );
 
 				// If the user wants ssl but the session is not ssl, force a secure cookie.
 				if ( !empty($_POST['log']) && !force_ssl_admin() ) {
@@ -489,15 +529,20 @@ class cftp_email_auth {
 				if ( !is_wp_error($user) && !$reauth ) {
 					if ( $interim_login ) {
 						$message = '<p class="message">' . __('You have logged in successfully.') . '</p>';
-						login_header( '', $message );
-?>
-	
-<script type="text/javascript">setTimeout( function(){window.close()}, 8000);</script>
-<p class="alignright">
-  <input type="button" class="button-primary" value="<?php esc_attr_e('Close'); ?>" onclick="window.close()" /></p>
-			</div></body></html>
-<?php
-						exit;
+						login_header( '', $message ); ?>
+
+			<?php if ( ! $customize_login ) : ?>
+				<script type="text/javascript">setTimeout( function(){window.close()}, 8000);</script>
+				<p class="alignright">
+				<input type="button" class="button-primary" value="<?php esc_attr_e('Close'); ?>" onclick="window.close()" /></p>
+			<?php endif; ?>
+				</div>
+			<?php do_action( 'login_footer' ); ?>
+			<?php if ( $customize_login ) : ?>
+				<script type="text/javascript">setTimeout( function(){ new wp.customize.Messenger({ url: '<?php echo wp_customize_url(); ?>', channel: 'login' }).send('login') }, 1000 );</script>
+			<?php endif; ?>
+			</body></html>
+<?php		exit;
 					}
 
 					if ( ( empty( $redirect_to ) || $redirect_to == 'wp-admin/' || $redirect_to == admin_url() ) ) {
@@ -523,7 +568,7 @@ class cftp_email_auth {
 					$errors->add('test_cookie', __("<strong>ERROR</strong>: Cookies are blocked or not supported by your browser. You must <a href='http://www.google.com/cookies.html'>enable cookies</a> to use WordPress."));
 
 					// Some parts of this script use the main login form to display a message
-				if ( isset($_GET['loggedout']) && TRUE == $_GET['loggedout'] )
+				if ( isset($_GET['loggedout']) && true == $_GET['loggedout'] )
 					$errors->add('loggedout', __('You are now logged out.'), 'message');
 				elseif ( isset($_GET['registration']) && 'disabled' == $_GET['registration'] )
 					$errors->add('registerdisabled', __('User registration is currently not allowed.'));
@@ -535,6 +580,8 @@ class cftp_email_auth {
 					$errors->add('registered', __('Registration complete. Please check your e-mail.'), 'message');
 				elseif	( $interim_login )
 					$errors->add('expired', __('Your session has expired. Please log-in again.'), 'message');
+				elseif ( strpos( $redirect_to, 'about.php?updated' ) )
+					$errors->add('updated', __( '<strong>You have successfully updated WordPress!</strong> Please log back in to experience the awesomeness.' ), 'message' );
 
 				// Clear any stale cookies.
 				if ( $reauth )
@@ -549,70 +596,75 @@ class cftp_email_auth {
 
 <form name="loginform" id="loginform" action="<?php echo esc_url( site_url( 'wp-login.php', 'login_post' ) ); ?>" method="post">
   <p>
-	<label for="user_login"><?php _e('Username') ?><br />
+	<label for="user_login"><?php _e('Email address') ?><br />
 	  <input type="text" name="log" id="user_login" class="input" value="<?php echo esc_attr($user_login); ?>" size="20" tabindex="10" /></label>
   </p>
+<?php if (0) { ?>
   <p>
 	<label for="user_pass"><?php _e('Password') ?><br />
 	  <input type="password" name="pwd" id="user_pass" class="input" value="" size="20" tabindex="20" /></label>
   </p>
-  <?php do_action('login_form'); ?>
+<?php } ?>
+<?php do_action('login_form'); ?>
+<?php if (0) { ?>
   <p class="forgetmenot"><label for="rememberme"><input name="rememberme" type="checkbox" id="rememberme" value="forever" tabindex="90"<?php checked( $rememberme ); ?> /> <?php esc_attr_e('Remember Me'); ?></label></p>
+<?php } ?>
   <p class="submit">
 	<input type="submit" name="wp-submit" id="wp-submit" class="button-primary" value="<?php esc_attr_e('Log In'); ?>" tabindex="100" />
-	<?php	if ( $interim_login ) { ?>
+<?php	if ( $interim_login ) { ?>
 	<input type="hidden" name="interim-login" value="1" />
-	<?php	} else { ?>
+<?php	} else { ?>
 	<input type="hidden" name="redirect_to" value="<?php echo esc_attr($redirect_to); ?>" />
-	<?php 	} ?>
+<?php 	} ?>
+<?php   if ( $customize_login ) : ?>
+		<input type="hidden" name="customize-login" value="1" />
+<?php   endif; ?>
 	<input type="hidden" name="testcookie" value="1" />
   </p>
 </form>
 
-			<?php if ( !$interim_login ) { ?>
-
+<?php if ( !$interim_login ) { ?>
 <p id="nav">
-  <?php if ( isset($_GET['checkemail']) && in_array( $_GET['checkemail'], array('confirm', 'newpass') ) ) : ?>
-  <?php elseif ( get_option('users_can_register') ) : ?>
-  <a href="<?php echo esc_url( site_url( 'wp-login.php?action=register', 'login' ) ); ?>"><?php _e( 'Register' ); ?></a> |
-  <a href="<?php echo esc_url( wp_lostpassword_url() ); ?>" title="<?php esc_attr_e( 'Password Lost and Found' ); ?>"><?php _e( 'Lost your password?' ); ?></a>
-  <?php else : ?>
-  <a href="<?php echo esc_url( wp_lostpassword_url() ); ?>" title="<?php esc_attr_e( 'Password Lost and Found' ); ?>"><?php _e( 'Lost your password?' ); ?></a>
-  <?php endif; ?>
+<?php if ( isset($_GET['checkemail']) && in_array( $_GET['checkemail'], array('confirm', 'newpass') ) ) : ?>
+<?php elseif ( get_option('users_can_register') ) : ?>
+<a href="<?php echo esc_url( site_url( 'wp-login.php?action=register', 'login' ) ); ?>"><?php _e( 'Register' ); ?></a> |
+<a href="<?php echo esc_url( wp_lostpassword_url() ); ?>" title="<?php esc_attr_e( 'Password Lost and Found' ); ?>"><?php _e( 'Lost your password?' ); ?></a>
+<?php else : ?>
+<a href="<?php echo esc_url( wp_lostpassword_url() ); ?>" title="<?php esc_attr_e( 'Password Lost and Found' ); ?>"><?php _e( 'Lost your password?' ); ?></a>
+<?php endif; ?>
 </p>
-
-			<?php } ?>
+<?php } ?>
 
 <script type="text/javascript">
   function wp_attempt_focus(){
-	  setTimeout( function(){ try{
-		  <?php if ( $user_login || $interim_login ) { ?>
-				  d = document.getElementById('user_pass');
-		  d.value = '';
-		  <?php } else { ?>
-				  d = document.getElementById('user_login');
-		  <?php if ( 'invalid_username' == $errors->get_error_code() ) { ?>
-				  if( d.value != '' )
-			  d.value = '';
-		  <?php
-		  }
-		  }?>
-						d.focus();
-		  d.select();
-	  } catch(e){}
-	  }, 200);
-  }
+setTimeout( function(){ try{
+<?php if ( $user_login || $interim_login ) { ?>
+d = document.getElementById('user_pass');
+d.value = '';
+<?php } else { ?>
+d = document.getElementById('user_login');
+<?php if ( 'invalid_username' == $errors->get_error_code() ) { ?>
+if( d.value != '' )
+d.value = '';
+<?php
+}
+}?>
+d.focus();
+d.select();
+} catch(e){}
+}, 200);
+}
 
-			  <?php if ( !$error ) { ?>
-  wp_attempt_focus();
-			  <?php } ?>
-  if(typeof wpOnload=='function')wpOnload();
+<?php if ( !$error ) { ?>
+wp_attempt_focus();
+<?php } ?>
+if(typeof wpOnload=='function')wpOnload();
 </script>
 
-			<?php
-			  login_footer();
-			  break;
-		} /* end action switch*/
+<?php
+login_footer();
+break;
+} /* end action switch */
 
 		exit();
 	} // end login_init
@@ -656,10 +708,11 @@ class cftp_email_auth {
 		zed1_debug("generated token ", $token);
 		//zed1_debug("_SERVER ", $_SERVER);
 		// store the token against the user, with a timestamp
-		$data = array( 'token' => $token, 'ip' => $_SERVER['REMOTE_ADDR'], 'time' => time() );
+		$data = array( 'token' => $token, 'ip' => $_SERVER['REMOTE_ADDR'], 'time' => time(), 'user_id' => $user->ID );
 		zed1_debug("data ", $data);
 
-		update_user_meta( $user->ID, CFTP_EMAIL_AUTH_TOKEN_META_KEY . $token[4], $data);
+		set_site_transient( CFTP_EMAIL_AUTH_TOKEN_META_KEY . $token[4], $data, self::get_option( 'token_lifetime' ) * 60 );
+		// update_user_meta( $user->ID, CFTP_EMAIL_AUTH_TOKEN_META_KEY . $token[4], $data);
 		
 		$message = "\n
 To login to [SITENAME], please visit the following address: [LOGINLINK] \n
@@ -671,9 +724,9 @@ the [SITENAME] team
 ";
 		
 		$message = str_replace('[SITENAME]', get_bloginfo( 'sitename' ) ,  $message);
-		$message = str_replace('[LOGINLINK]', site_url( 'wp-login.php?action=emaillogin&token=' . urlencode( $token[4]  ) ),  $message);
+		$message = str_replace('[LOGINLINK]', site_url( '/login/' . urlencode( $token[4]  ) ),  $message);
 		
-		$message = str_replace('[LOGINPAGE]', site_url( 'wp-login.php?action=emaillogin' ),  $message);
+		$message = str_replace('[LOGINPAGE]', site_url( '/login/' ),  $message);
 		unset( $token[4] );
 		$message = str_replace('[TOKEN]', implode( ' ', $token ),  $message);
 		zed1_debug($message);
@@ -703,7 +756,7 @@ the [SITENAME] team
 
 	static function get_token_part(){
 		global $cftp_consonants, $cftp_vowels,$cftp_letters;
-		
+
 		$pw = '';
 
 		// a consonant, a vowel, and two random letters please, Carol.
@@ -719,57 +772,65 @@ the [SITENAME] team
 
 
 
-	static function init_login() {
+	static function catch_login() {
+		zed1_debug($_SERVER['REQUEST_URI']);
 		if ( false !== strpos( $_SERVER['REQUEST_URI'], '/login/') ) {
 			$url = $_SERVER['REQUEST_URI'];
-			zed1_debug("url=$url");
 			$p = strpos( $_SERVER['REQUEST_URI'], '/login/') + strlen( '/login/' );
-			zed1_debug("p=$p");
 			$sent_token = strtolower( substr( $url, $p ) );
-			zed1_debug("sent_token=$sent_token");
+			//zed1_debug("sent_token=$sent_token");
 			if ( strlen( $sent_token ) == 16 ) {
 				//try to find it in the db
 				global $wpdb;
-				$data = $wpdb->get_var( $wpdb->prepare( "SELECT meta_value from $wpdb->usermeta WHERE meta_key = %s", CFTP_EMAIL_AUTH_TOKEN_META_KEY . $sent_token ) );
+
+				$data = get_site_transient( CFTP_EMAIL_AUTH_TOKEN_META_KEY . $sent_token );
 				zed1_debug("data=", $data);
-				$data = maybe_unserialize($data);
+				//$data = $wpdb->get_row( $wpdb->prepare( "SELECT user_id, meta_value from $wpdb->usermeta WHERE meta_key = %s", CFTP_EMAIL_AUTH_TOKEN_META_KEY . $sent_token ) );
+				$user_id = $data['user_id'];
+				zed1_debug("user_id=$user_id");
+				//$data = maybe_unserialize($data->meta_value);
 				zed1_debug("data=", $data);
 				// check token matches (duh! we wouldn't have found it)
 				if ( $sent_token === $data['token'][4] ) {
 					// check for timeout
-					if ( $data['time'] + self::get_option( 'token_lifetime' ) > time() ) {
+						zed1_debug("token_lifetime=", self::get_option( 'token_lifetime' ));
+						zed1_debug("time=",time());
+						zed1_debug("data[time]=",$data['time']);
+					if ( $data['time'] + ( self::get_option( 'token_lifetime' ) * 60 ) > time() ) {
 						// check ip matches
+						zed1_debug("ip=",$_SERVER['REMOTE_ADDR']);
 						if ( $data['ip'] ===  $_SERVER['REMOTE_ADDR'] ) {
-							// goodd to go. log the user in
-							
+							// good to go. log the user in
+							zed1_debug("good to go");
+
+							$user = get_user_by( 'id', $user_id );
+							zed1_debug($user);
+							$user_login = $user->user_login;
+							wp_set_current_user($user_id, $user_login);
+							wp_set_auth_cookie($user_id);
+							do_action('wp_login', $user_login);
+							wp_redirect( site_url() );
+							// we can delete this transient now
+							delete_site_transient( CFTP_EMAIL_AUTH_TOKEN_META_KEY . $token[4] );
+
+							exit;
 						} else {
 							// error ip doesn't match
+							zed1_debug("ip doesn't match");
 						}
 					} else {
 						// timed out
+						zed1_debug("timed out");
 					}
 				} else {
 				//invalid token
+						zed1_debug("invalid token");
 				}
 			} // end if length ok
-/*
-			$id = intval($_REQUEST['p']);
-			if ($id > 0) {
-				global $post;
-				$post = get_post($id);
-				$asked = get_post_meta($post->ID, IASQ_CANDIDATES_ASKED_META_TAG);
-				$user = wp_get_current_user();
-				if ( ( 'post' == $post->post_type ) && ( count( $asked ) > 0 ) ) {
-					if (!empty($user) && current_user_can('candidate')) {
-						include( locate_template( array( 'show-single-question.php' ), false ) );
-						exit();
-					}
-				}
-				$url = site_url('?p='.$id);
-				wp_redirect($url);
-				exit();
-			}
-*/
+			// if we get here, it;s either an invalid token, or not found coz it timed out.
+			//redirect to wp-login.php with param token
+			wp_redirect( site_url( 'wp-login.php?action=token' ) );
+			exit;
 		}
 	}
 
