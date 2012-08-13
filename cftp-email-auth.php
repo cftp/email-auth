@@ -86,7 +86,7 @@ class cftp_email_auth {
 		remove_filter( 'authenticate', 'wp_authenticate_username_password', 20, 3 );
 		add_filter( 'authenticate', array( 'cftp_email_auth', 'authenticate' ), 20, 3 );
 
-
+		//apply_filters('auth_cookie_expiration', 1209600, $user_id, $remember)
 		/* admin only hooks below here */
 		if ( !is_admin() )
 			return;
@@ -94,6 +94,9 @@ class cftp_email_auth {
 		add_action( 'admin_init', array( 'cftp_email_auth', 'admin_init' ) );
 		add_action( 'admin_menu', array( 'cftp_email_auth', 'admin_menu' ) );
 
+		//add_action( 'admin_print_scripts', array( 'cftp_email_auth', 'admin_print_scripts' ) );
+		add_action('admin_print_scripts-user-new.php',	array( 'cftp_email_auth', 'enqueue_admin_scripts' ) );
+		
 	} // end init
 
 	static function admin_init() {
@@ -642,11 +645,12 @@ class cftp_email_auth {
 
 				if ( isset($_POST['log']) )
 					$user_login = ( 'incorrect_password' == $errors->get_error_code() || 'empty_password' == $errors->get_error_code() ) ? esc_attr(stripslashes($_POST['log'])) : '';
-				$rememberme = ! empty( $_POST['rememberme'] );
+				$rememberme = true; //! empty( $_POST['rememberme'] );
 ?>
 
 <form name="loginform" id="loginform" action="<?php echo esc_url( site_url( 'wp-login.php', 'login_post' ) ); ?>" method="post">
   <p>
+	<input name="rememberme" type="hidden" id="rememberme" value="forever" />
 	<label for="user_login"><?php _e('Email address') ?><br />
 	  <input type="text" name="log" id="user_login" class="input" value="<?php echo esc_attr($user_login); ?>" size="20" tabindex="10" /></label>
   </p>
@@ -657,9 +661,6 @@ class cftp_email_auth {
   </p>
 <?php } ?>
 <?php do_action('login_form'); ?>
-<?php if (0) { /* don't need remember me field */  ?>
-  <p class="forgetmenot"><label for="rememberme"><input name="rememberme" type="checkbox" id="rememberme" value="forever" tabindex="90"<?php checked( $rememberme ); ?> /> <?php esc_attr_e('Remember Me'); ?></label></p>
-<?php } ?>
   <p class="submit">
 	<input type="submit" name="wp-submit" id="wp-submit" class="button-primary" value="<?php esc_attr_e('Log In'); ?>" tabindex="100" />
 <?php	if ( $interim_login ) { ?>
@@ -835,6 +836,23 @@ the [SITENAME] team
 	} // end login_form_token
 
 
+	static function catch_login() {
+		zed1_debug($_SERVER['REQUEST_URI']);
+		if ( false !== strpos( $_SERVER['REQUEST_URI'], '/login') ) {
+			$url = $_SERVER['REQUEST_URI'];
+			$p = strpos( $_SERVER['REQUEST_URI'], '/login/') + strlen( '/login/' );
+			$token_login = strtolower( substr( $url, $p ) );
+			zed1_debug("token_login=$token_login");
+
+			self::authorise_with_token( $token_login );
+
+			// if we get here, it;s either an invalid token, or not found coz it timed out.
+			//redirect to wp-login.php with param token
+			wp_redirect( site_url( 'wp-login.php?action=token' ) );
+			exit;
+		}
+	}
+
 	static function authorise_with_token( $token_login ) {
 		if ( strlen( $token_login ) == 16 ) {
 
@@ -861,11 +879,15 @@ the [SITENAME] team
 						zed1_debug($user);
 						$user_login = $user->user_login;
 						wp_set_current_user($user_id, $user_login);
-						wp_set_auth_cookie($user_id);
-						do_action('wp_login', $user_login);
-						wp_redirect( site_url() );
+						wp_set_auth_cookie($user_id, true);
+
 						// we can delete this transient now
-						delete_site_transient( CFTP_EMAIL_AUTH_TOKEN_META_KEY . $token[4] );
+						delete_site_transient( CFTP_EMAIL_AUTH_TOKEN_META_KEY . $token_login );
+
+						do_action('wp_login', $user_login);
+
+
+						wp_redirect( site_url() );
 
 						exit;
 					} else {
@@ -882,23 +904,6 @@ the [SITENAME] team
 			}
 		} // end if length ok
 	} // end authorise_with_token
-
-	static function catch_login() {
-		zed1_debug($_SERVER['REQUEST_URI']);
-		if ( false !== strpos( $_SERVER['REQUEST_URI'], '/login') ) {
-			$url = $_SERVER['REQUEST_URI'];
-			$p = strpos( $_SERVER['REQUEST_URI'], '/login/') + strlen( '/login/' );
-			$token_login = strtolower( substr( $url, $p ) );
-			zed1_debug("token_login=$token_login");
-
-			self::authorise_with_token( $token_login );
-
-			// if we get here, it;s either an invalid token, or not found coz it timed out.
-			//redirect to wp-login.php with param token
-			wp_redirect( site_url( 'wp-login.php?action=token' ) );
-			exit;
-		}
-	}
 
 	// end authentication function ///////////////////////////////////
 

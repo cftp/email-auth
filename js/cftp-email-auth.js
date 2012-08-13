@@ -18,4 +18,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 jQuery(document).ready( function($) {
 	//do something here!
+
+	// check and hide the send email confirmation cjeckbox if it exists
+	$('#adduser-noconfirmation').attr( 'checked', true );
+	$('#adduser-noconfirmation').closest('tr').hide();
+	$('#noconfirmation').attr( 'checked', true );
+	$('#noconfirmation').closest('tr').hide();
+
 });
