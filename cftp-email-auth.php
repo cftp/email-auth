@@ -49,13 +49,13 @@ $cftp_letters	  = $cftp_consonants.$cftp_vowels; //both
 class cftp_email_auth {
 
 	function __construct() {
-		zed1_debug();
+		//zed1_debug();
 		//add_action(	'init', array( 'cftp_email_auth', 'catch_login' ) );
 		add_action( 'init', array( 'cftp_email_auth', 'init' ) );
 	} // end constructor
 
 	static function init() {
-		zed1_debug();
+		//zed1_debug();
 		self::catch_login();
 
 		$needs_flush = false;
@@ -77,9 +77,9 @@ class cftp_email_auth {
 
 		load_plugin_textdomain( 'cftp_email_auth', false, basename( dirname(__FILE__) ) . '/languages' );
 
-		zed1_debug("adding login_init action");
+		//zed1_debug("adding login_init action");
 		add_action( 'login_init', array( 'cftp_email_auth', 'login_init' ) );
-		zed1_debug("added login_init action");
+		//zed1_debug("added login_init action");
 		//add_action(	'login_form', array( 'cftp_email_auth', 'login_form' ) );
 		add_action(	'login_form_token', array( 'cftp_email_auth', 'login_form_token' ) );
 
@@ -87,6 +87,11 @@ class cftp_email_auth {
 		add_filter( 'authenticate', array( 'cftp_email_auth', 'authenticate' ), 20, 3 );
 
 		//apply_filters('auth_cookie_expiration', 1209600, $user_id, $remember)
+
+		add_filter( 'wpmu_welcome_user_notification', array( 'cftp_email_auth', 'wpmu_welcome_user_notification'), 10, 3 );
+		add_filter( 'wpmu_signup_user_notification', array( 'cftp_email_auth', 'wpmu_signup_user_notification'), 10, 4 );
+
+
 		/* admin only hooks below here */
 		if ( !is_admin() )
 			return;
@@ -100,7 +105,7 @@ class cftp_email_auth {
 	} // end init
 
 	static function admin_init() {
-		zed1_debug();
+		//zed1_debug();
 		register_setting( CFTP_EMAIL_AUTH_OPTIONS, CFTP_EMAIL_AUTH_OPTIONS, array( 'cftp_email_auth', 'validate_options' ) );
 
 		add_settings_section( CFTP_EMAIL_AUTH_OPTIONS . '-main',										// html id
@@ -128,7 +133,7 @@ class cftp_email_auth {
 	} // end admin_init
 
 	static function main_section() {
-		zed1_debug();
+		//zed1_debug();
 		$options = self::get_options();
 		echo __( '<p class="section-description" id="main_section">Please fill in these security settings. '
 				   . "If you wish to restrict user registration to only allow emails from a specific domain, fill in the 'Restrict emails to this domain' field</p>"
@@ -138,7 +143,7 @@ class cftp_email_auth {
 
 
 	static function settings_input_field( $args ) {
-		zed1_debug( $args );
+		//zed1_debug( $args );
 		$options = self::get_options();
 		if (isset($args) && !empty($args)) {
 			echo '<input type="text" name="' . CFTP_EMAIL_AUTH_OPTIONS . '[' . $args['fieldname'] . ']" id="' . $args['fieldname'] . '" size="30" value="' . esc_attr(self::array_as_list($options[$args['fieldname']])) . '" />' . NL;
@@ -159,20 +164,20 @@ class cftp_email_auth {
 
 
 	static function validate_options( $input ) {
-		zed1_debug($input);
+		//zed1_debug($input);
 
 		$options = self::get_options();
 
 		$valid = array();
 		$valid['email_domain'] = trim( $input['email_domain'] );
 		$valid['token_lifetime'] = intval( trim( $input['token_lifetime'] ) );
-		zed1_debug( "valid=" . var_export( $valid, true ) );
+		//zed1_debug( "valid=" . var_export( $valid, true ) );
 		return $valid;
 	}
 
 
 	static function admin_menu() {
-		zed1_debug();
+		//zed1_debug();
 
 		$options = self::get_options();
 		// add ourselves under the settings menu
@@ -182,7 +187,7 @@ class cftp_email_auth {
 						  CFTP_EMAIL_AUTH_PLUGIN_NAME.'_settings',
 						  array( 'cftp_email_auth', 'display_options_page' )
 						);
-		zed1_debug( $options_page );
+		//zed1_debug( $options_page );
 
 		wp_register_style( 'cftp-email-auth', plugins_url( 'css/cftp-email-auth.css', __FILE__ ), array(), CFTP_EMAIL_AUTH_VERSION );
 		wp_register_script( 'cftp-email-auth', plugins_url( 'js/cftp-email-auth.js', __FILE__ ), array(), CFTP_EMAIL_AUTH_VERSION );
@@ -192,7 +197,7 @@ class cftp_email_auth {
 	} // end admin_menu
 
 	static function display_options_page() {
-		zed1_debug();
+		//zed1_debug();
 		global $wpdb;
 		//zed1_debug("post=", $_POST);
 
@@ -216,12 +221,12 @@ class cftp_email_auth {
 	} // end display_options_page
 
     static function enqueue_admin_style() {
-		zed1_debug();
+		//zed1_debug();
 		wp_enqueue_style( 'cftp-email-auth' );
     } // end enqueue_admin_style
 
     static function enqueue_admin_scripts() {
-		zed1_debug();
+		//zed1_debug();
 		wp_enqueue_script( 'cftp-email-auth' );
     } // end enqueue_admin_scripts
 
@@ -242,14 +247,14 @@ class cftp_email_auth {
 	} // end get_options
 
 	static function update_options($new_options) {
-		zed1_debug("new_options = " . var_export( $new_options, true ));
+		//zed1_debug("new_options = " . var_export( $new_options, true ));
 
 		$old_options = self::get_options();
-		zed1_debug("old-options = " . var_export( $old_options, true ));
+		//zed1_debug("old-options = " . var_export( $old_options, true ));
 		$options = array_merge($old_options, $new_options);
-		zed1_debug("merged options = " . var_export( $options, true ));
+		//zed1_debug("merged options = " . var_export( $options, true ));
 
-		zed1_debug("blog_id = $blog_id");
+		//zed1_debug("blog_id = $blog_id");
 		update_option( CFTP_EMAIL_AUTH_OPTIONS, $options );
 
 		return $options;
@@ -271,7 +276,7 @@ class cftp_email_auth {
 
 	/* let's take over wp-login.php */
 	static function login_init() {
-		zed1_debug();
+		//zed1_debug();
 		$action = isset($_REQUEST['action']) ? $_REQUEST['action'] : 'login';
 		$errors = new WP_Error();
 
@@ -381,16 +386,16 @@ class cftp_email_auth {
 			case 'token':
 
 				$token_login = isset($_REQUEST['token_login']) ? $_REQUEST['token_login'] : '';
-				zed1_debug("token_login=$token_login");
+				//zed1_debug("token_login=$token_login");
 /*
 				$token_login = trim( $token_login );
-				zed1_debug("token_login=$token_login");
+				//zed1_debug("token_login=$token_login");
 
 				$token_login = str_replace( ' ', '', $token_login );
-				zed1_debug("token_login=$token_login");
+				//zed1_debug("token_login=$token_login");
 
 				$token_login = strtolower( $token_login );
-				zed1_debug("token_login=$token_login");
+				//zed1_debug("token_login=$token_login");
 */
 
 				//$errors = new WP_Error();
@@ -722,7 +727,7 @@ break;
 	} // end login_init
 
 	static function login_form() {
-		zed1_debug();
+		//zed1_debug();
 		$user_email = '';
 
 ?>
@@ -746,17 +751,19 @@ break;
 			$useremail = $user->user_email;
 		} else {
 			$error = new WP_Error();
-			$error->add('user', __('<strong>Your email address was not recognized</strong>: Did you type it correctly?'));
+			if ( !empty( $username ) ) {
+				$error->add('user', __('<strong>Your email address was not recognized</strong>: Did you type it correctly?'));
+			}
 			return $error;
 		}
 
 		// create a token
 		$token = self::generate_token();
-		zed1_debug("generated token ", $token);
+		//zed1_debug("generated token ", $token);
 		//zed1_debug("_SERVER ", $_SERVER);
 		// store the token against the user, with a timestamp
 		$data = array( 'token' => $token, 'ip' => $_SERVER['REMOTE_ADDR'], 'time' => time(), 'user_id' => $user->ID );
-		zed1_debug("data ", $data);
+		//zed1_debug("data ", $data);
 
 		set_site_transient( CFTP_EMAIL_AUTH_TOKEN_META_KEY . $token[4], $data, self::get_option( 'token_lifetime' ) * 60 );
 		// update_user_meta( $user->ID, CFTP_EMAIL_AUTH_TOKEN_META_KEY . $token[4], $data);
@@ -776,11 +783,11 @@ the [SITENAME] team
 		$message = str_replace('[LOGINPAGE]', site_url( '/login/' ),  $message);
 		unset( $token[4] );
 		$message = str_replace('[TOKEN]', implode( ' ', $token ),  $message);
-		zed1_debug($message);
+		//zed1_debug($message);
 
 		$subject = "[SITENAME] - login";
 		$subject = str_replace('[SITENAME]', get_bloginfo( 'sitename' ) ,  $subject);
-		zed1_debug($subject);
+		//zed1_debug($subject);
 
 		$res = wp_mail( $useremail, $subject, $message);
 
@@ -818,18 +825,18 @@ the [SITENAME] team
 
 
 	static function login_form_token() {
-		zed1_debug();
+		//zed1_debug();
 		$token_login = isset($_REQUEST['token_login']) ? $_REQUEST['token_login'] : '';
-		zed1_debug("token_login=$token_login");
+		//zed1_debug("token_login=$token_login");
 
 		$token_login = trim( $token_login );
-		zed1_debug("token_login=$token_login");
+		//zed1_debug("token_login=$token_login");
 
 		$token_login = str_replace( ' ', '', $token_login );
-		zed1_debug("token_login=$token_login");
+		//zed1_debug("token_login=$token_login");
 
 		$token_login = strtolower( $token_login );
-		zed1_debug("token_login=$token_login");
+		//zed1_debug("token_login=$token_login");
 
 		self::authorise_with_token( $token_login );
 
@@ -837,12 +844,12 @@ the [SITENAME] team
 
 
 	static function catch_login() {
-		zed1_debug($_SERVER['REQUEST_URI']);
+		//zed1_debug($_SERVER['REQUEST_URI']);
 		if ( false !== strpos( $_SERVER['REQUEST_URI'], '/login') ) {
 			$url = $_SERVER['REQUEST_URI'];
 			$p = strpos( $_SERVER['REQUEST_URI'], '/login/') + strlen( '/login/' );
 			$token_login = strtolower( substr( $url, $p ) );
-			zed1_debug("token_login=$token_login");
+			//zed1_debug("token_login=$token_login");
 
 			self::authorise_with_token( $token_login );
 
@@ -857,26 +864,26 @@ the [SITENAME] team
 		if ( strlen( $token_login ) == 16 ) {
 
 			$data = get_site_transient( CFTP_EMAIL_AUTH_TOKEN_META_KEY . $token_login );
-			zed1_debug("data=", $data);
+			//zed1_debug("data=", $data);
 
 			$user_id = $data['user_id'];
-			zed1_debug("user_id=$user_id");
+			//zed1_debug("user_id=$user_id");
 
 			// check token matches (duh! we wouldn't have found it)
 			if ( $token_login === $data['token'][4] ) {
 				// check for timeout
-				zed1_debug("token_lifetime=", self::get_option( 'token_lifetime' ));
-				zed1_debug("time=",time());
-				zed1_debug("data[time]=",$data['time']);
+				//zed1_debug("token_lifetime=", self::get_option( 'token_lifetime' ));
+				//zed1_debug("time=",time());
+				//zed1_debug("data[time]=",$data['time']);
 				if ( $data['time'] + ( self::get_option( 'token_lifetime' ) * 60 ) > time() ) {
 					// check ip matches
-					zed1_debug("ip=",$_SERVER['REMOTE_ADDR']);
+					//zed1_debug("ip=",$_SERVER['REMOTE_ADDR']);
 					if ( $data['ip'] ===  $_SERVER['REMOTE_ADDR'] ) {
 						// good to go. log the user in
-						zed1_debug("good to go");
+						//zed1_debug("good to go");
 
 						$user = get_user_by( 'id', $user_id );
-						zed1_debug($user);
+						//zed1_debug($user);
 						$user_login = $user->user_login;
 						wp_set_current_user($user_id, $user_login);
 						wp_set_auth_cookie($user_id, true);
@@ -904,6 +911,17 @@ the [SITENAME] team
 			}
 		} // end if length ok
 	} // end authorise_with_token
+
+
+	static function wpmu_welcome_user_notification( $user_id, $password, $meta ) {
+		//zed1_debug( $user_id, $password, $meta );
+		return false;
+	} // end wpmu_welcome_user_notification
+
+	static function wpmu_signup_user_notification( $user, $user_email, $key, $meta ) {
+		//zed1_debug( $user, $user_email, $key, $meta );
+		return false;
+	} // end wpmu_signup_user_notification
 
 	// end authentication function ///////////////////////////////////
 
