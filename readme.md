@@ -20,25 +20,12 @@ The plugin relies on the organisation having confidence in the security of their
 
 1. Upload `plugin-name.php` to the `/wp-content/plugins/` directory
 1. Activate the plugin through the 'Plugins' menu in WordPress
-1. Go to the InfinityTribes -> Config page and register on the network.
 
 ## Frequently Asked Questions
 
 ### Is this secure?  
 
 It is as secure as your staff access to your email system. Or as secure as access to externals email systems if you allow those.
-
-## Screenshots
-
-![This screen shot description corresponds to screenshot-1.(png|jpg|jpeg|gif). Note that the screenshot is taken from](screenshot-1.png "This screen shot description corresponds to screenshot-1.(png|jpg|jpeg|gif). Note that the screenshot is taken from")     
-_This screen shot description corresponds to screenshot-1.(png|jpg|jpeg|gif). Note that the screenshot is taken from_
-
-![the directory of the stable readme.txt, so in this case, `/tags/4.3/screenshot-1.png` (or jpg, jpeg, gif)](screenshot-2.png "the directory of the stable readme.txt, so in this case, `/tags/4.3/screenshot-1.png` (or jpg, jpeg, gif)")     
-_the directory of the stable readme.txt, so in this case, `/tags/4.3/screenshot-1.png` (or jpg, jpeg, gif)_
-
-![This is the second screen shot](screenshot-3.png "This is the second screen shot")     
-_This is the second screen shot_
-
 
 ## Changelog
 
