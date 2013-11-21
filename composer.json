@@ -1,0 +1,16 @@
+{
+    "name"       : "cftp/email-auth",
+    "description": "A plugin that uses email to authenticate WordPress users",
+    "homepage"   : "https://github.com/cftp/email-auth/",
+    "type"       : "wordpress-plugin",
+    "license"    : "GPL-2.0+",
+    "authors"    : [
+            {
+                    "name"    : "Code For The People",
+                    "homepage": "http://codeforthepeople.com/"
+            }
+    ],
+    "require": {
+            "composer/installers": "~1.0"
+    }
+}
